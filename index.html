@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inspección de Extintores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+  :root{
+    --bg:#f2f8f5; --bg-panel:#ffffff; --bg-elevated:#eef7f1; --bg-input:#ffffff;
+    --border:#cfe6da; --border-soft:#e2f0e8;
+    --text:#16261d; --text-dim:#5c7768; --text-faint:#94ac9f;
+    --accent:#0e9d5e; --accent-dim:#dcf4e6;
+    --ok:#159a53; --ok-dim:#e0f6e8;
+    --fail:#dc2626; --fail-dim:#fde8e8;
+    --na:#8a97a3; --na-dim:#eef1f3;
+  }
+  body.dark-mode{
+    --bg:#0a130d; --bg-panel:#101d15; --bg-elevated:#16261b; --bg-input:#0c1712;
+    --border:#233a2b; --border-soft:#1b2e21;
+    --text:#e7f3ec; --text-dim:#8fac9b; --text-faint:#57715f;
+    --accent:#22c55e; --accent-dim:#123822;
+    --ok:#34d399; --ok-dim:#123322;
+    --fail:#f87171; --fail-dim:#3d1616;
+    --na:#8b98a5; --na-dim:#1c2530;
+  }
+  body, .btn, .field input, .zona-row, .ext-card, input, textarea, select{
+    transition:background-color .2s ease, border-color .2s ease, color .2s ease;
+  }
+  .theme-toggle{
+    width:36px; height:36px; border-radius:50%; border:1px solid var(--border-soft);
+    background:var(--bg-elevated); color:var(--text-dim); font-size:15px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    opacity:0.85;
+  }
+  .theme-toggle:hover{border-color:var(--accent); opacity:1;}
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:
+      linear-gradient(var(--border-soft) 1px, transparent 1px) 0 0/100% 42px,
+      linear-gradient(90deg, var(--border-soft) 1px, transparent 1px) 0 0/42px 100%,
+      var(--bg);
+    background-attachment:fixed; color:var(--text); font-family:'Inter', sans-serif;
+    min-height:100vh; padding:24px 16px 90px;
+  }
+  .wrap{max-width:1360px; margin:0 auto;}
+
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end; gap:18px; flex-wrap:wrap;
+    padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid var(--border);
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--accent); margin-bottom:6px; display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow .dot{width:6px; height:6px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent);}
+  h1{font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:26px; letter-spacing:-0.01em;}
+  .meta-fields{display:flex; gap:14px; flex-wrap:wrap;}
+  .inspection-meta{
+    display:flex; gap:14px; flex-wrap:wrap; margin-bottom:16px;
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px;
+    box-shadow:0 1px 2px rgba(16,60,40,0.04);
+  }
+  .inspection-meta .field{flex:1; min-width:180px;}
+  .inspection-meta .field input{width:100%; min-width:0;}
+  .field{display:flex; flex-direction:column; gap:5px;}
+  .field label{font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-faint);}
+  .field input{
+    background:var(--bg-panel); border:1px solid var(--border); color:var(--text);
+    padding:8px 10px; border-radius:6px; font-size:13px; font-family:'JetBrains Mono', monospace; min-width:150px;
+  }
+  .field input:focus{outline:none; border-color:var(--accent);}
+
+  .toolbar{display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;}
+  .search-box{
+    flex:1; min-width:220px; background:var(--bg-panel); border:1px solid var(--border);
+    border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:8px;
+    box-shadow:0 1px 2px rgba(16,60,40,0.04);
+  }
+  .search-box svg{color:var(--text-faint); flex-shrink:0;}
+  .search-box input{background:transparent; border:none; color:var(--text); font-size:13.5px; width:100%;}
+  .search-box input:focus{outline:none;}
+  .btn{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:13px; cursor:pointer;
+    border-radius:8px; padding:10px 16px; border:1px solid var(--border);
+    background:var(--bg-panel); color:var(--text); display:flex; align-items:center; gap:7px;
+    transition:border-color .15s, background .15s;
+  }
+  .btn:hover{border-color:var(--accent-dim); background:var(--bg-elevated);}
+  .btn-accent{background:var(--accent); color:#ffffff; border:none;}
+  .btn-accent:hover{filter:brightness(1.1);}
+  .btn-subtle{
+    background:none; border:1px dashed var(--border-soft); color:var(--text-faint);
+    font-size:11px; padding:6px 11px; border-radius:6px;
+  }
+  .btn-subtle:hover{border-color:var(--text-faint); color:var(--text-dim); background:var(--bg-panel);}
+  .add-panel-note{font-size:11.5px; color:var(--text-faint); margin-bottom:12px; line-height:1.5;}
+
+  /* Add-extinguisher panel */
+  .add-panel{
+    background:var(--bg-panel); border:1px solid var(--accent-dim); border-radius:12px;
+    padding:18px; margin-bottom:16px; display:none;
+  }
+  .add-panel.open{display:block;}
+  .add-panel h3{font-family:'Space Grotesk', sans-serif; font-size:15px; margin-bottom:12px; color:var(--accent);}
+  .add-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:10px; margin-bottom:12px;}
+  .add-grid .field label{color:var(--text-dim);}
+  .add-grid select, .add-grid input{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+    padding:9px 10px; border-radius:6px; font-size:13px; width:100%;
+  }
+  .add-grid select:focus, .add-grid input:focus{outline:none; border-color:var(--accent);}
+  .add-actions{display:flex; gap:10px;}
+
+  /* History view */
+  #historyView{max-width:820px; margin:0 auto;}
+  .history-view-head{
+    display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap;
+  }
+  .history-view-head h2{font-family:'Space Grotesk', sans-serif; font-size:20px; color:var(--text);}
+  .history-list{display:flex; flex-direction:column; gap:4px;}
+  .history-group{margin-bottom:22px;}
+  .history-group:last-child{margin-bottom:0;}
+  .history-group-label{
+    font-family:'JetBrains Mono', monospace; font-size:11px; font-weight:600; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--accent); padding:2px 2px 8px;
+    border-bottom:1px solid var(--border-soft); margin-bottom:10px;
+  }
+  .history-group .history-card{margin-bottom:8px;}
+  .history-group .history-card:last-child{margin-bottom:0;}
+  .history-empty{font-size:13px; color:var(--text-faint); padding:10px 0;}
+  .history-card{border:1px solid var(--border); border-radius:9px; overflow:hidden; background:var(--bg-elevated);}
+  .history-card-head{
+    display:flex; align-items:center; gap:12px; padding:11px 14px; cursor:pointer; flex-wrap:wrap;
+  }
+  .history-card-title{display:flex; flex-direction:column; gap:2px; flex:1; min-width:140px;}
+  .history-month{font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:600; color:var(--text);}
+  .history-inspector{font-size:11.5px; color:var(--text-faint);}
+  .history-card-stats{display:flex; gap:8px; flex-shrink:0;}
+  .hstat{font-family:'JetBrains Mono', monospace; font-size:10.5px; font-weight:600; padding:3px 7px; border-radius:5px; background:var(--bg-panel);}
+  .hstat.ok{color:var(--ok);} .hstat.fail{color:var(--fail);} .hstat.na{color:var(--na);}
+  .history-card-actions{display:flex; gap:6px; flex-shrink:0;}
+  .btn-small{padding:6px 10px; font-size:11px; border-radius:6px;}
+  .history-card-body{padding:0 14px 14px; border-top:1px solid var(--border-soft);}
+  .history-zona-table{display:flex; flex-direction:column; gap:1px; margin-top:8px;}
+  .history-row{
+    display:flex; align-items:center; gap:10px; padding:6px 4px; font-size:12px;
+    border-bottom:1px dashed var(--border-soft);
+  }
+  .history-num{font-family:'JetBrains Mono', monospace; font-weight:700; color:var(--accent); min-width:26px;}
+  .history-ubi{flex:1; color:var(--text-dim); min-width:100px;}
+  .history-stats{font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--text-faint); flex-shrink:0;}
+  .history-flag{flex-shrink:0; font-size:12px;}
+
+  /* Zona list */
+  .zona-row{
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:10px;
+    margin-bottom:8px; overflow:hidden; box-shadow:0 1px 3px rgba(16,60,40,0.05);
+  }
+  .zona-head{
+    display:flex; align-items:center; gap:12px; padding:13px 16px; cursor:pointer; user-select:none;
+  }
+  .zona-num{
+    font-family:'JetBrains Mono', monospace; font-weight:700; font-size:13px; color:var(--accent);
+    background:var(--accent-dim); border-radius:6px; padding:4px 8px; min-width:32px; text-align:center; flex-shrink:0;
+  }
+  .zona-ubi{font-size:14px; font-weight:500; flex:1; min-width:120px; color:var(--text);}
+  .zona-ubi.empty{color:var(--text-faint); font-style:italic;}
+  .zona-chip{
+    font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--text-dim);
+    background:var(--bg-elevated); border:1px solid var(--border-soft); border-radius:5px; padding:4px 8px; flex-shrink:0;
+  }
+  .zona-progress{
+    font-family:'JetBrains Mono', monospace; font-size:11px; font-weight:600; flex-shrink:0;
+    padding:4px 9px; border-radius:5px; background:var(--bg-elevated); color:var(--text-dim);
+  }
+  .zona-progress.complete{color:var(--ok); background:var(--ok-dim);}
+  .zona-progress.partial{color:var(--accent);}
+  .zona-extra-badge{
+    font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--accent);
+    border:1px solid var(--accent-dim); border-radius:5px; padding:3px 7px; flex-shrink:0;
+  }
+  .chevron{
+    width:18px; height:18px; flex-shrink:0; color:var(--text-faint); transition:transform .18s;
+  }
+  .zona-row.expanded .chevron{transform:rotate(180deg);}
+  .zona-body{display:none; padding:4px 16px 16px; border-top:1px solid var(--border-soft);}
+  .zona-row.expanded .zona-body{display:block;}
+
+  .ext-card{background:var(--bg-elevated); border:1px solid var(--border-soft); border-radius:9px; padding:14px; margin-top:12px;}
+  .ext-card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+  .ext-card-head .label{font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--text-faint); letter-spacing:.06em; text-transform:uppercase;}
+  .ext-remove{background:none; border:none; color:var(--text-faint); cursor:pointer; font-size:14px; padding:3px 7px; border-radius:5px;}
+  .ext-remove:hover{color:var(--fail); background:var(--fail-dim);}
+
+  .ext-form-grid{display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; margin-bottom:12px;}
+  .ext-form-grid input{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+    padding:8px 9px; border-radius:6px; font-size:12.5px; width:100%;
+  }
+  .ext-form-grid input:focus{outline:none; border-color:var(--accent-dim);}
+  .ext-form-grid .mini-label{font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--text-faint); text-transform:uppercase; margin-bottom:4px; display:block;}
+
+  .check-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-bottom:12px;}
+  .check-item{display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .check-item .ci-label{font-size:12.5px; color:var(--text-dim);}
+  .segmented{display:flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; flex-shrink:0;}
+  .segmented button{
+    font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:600;
+    padding:6px 9px; background:var(--bg-input); color:var(--text-faint);
+    border:none; border-right:1px solid var(--border); cursor:pointer;
+  }
+  .segmented button:last-child{border-right:none;}
+  .segmented button.sel-ok{background:var(--ok-dim); color:var(--ok);}
+  .segmented button.sel-fail{background:var(--fail-dim); color:var(--fail);}
+  .segmented button.sel-na{background:var(--na-dim); color:var(--na);}
+
+  .obs-field textarea{
+    width:100%; background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+    border-radius:7px; padding:8px 10px; font-size:12.5px; font-family:'Inter', sans-serif;
+    resize:vertical; min-height:44px;
+  }
+  .obs-field textarea:focus{outline:none; border-color:var(--accent-dim);}
+  .obs-field label{font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--text-faint); text-transform:uppercase; margin-bottom:4px; display:block;}
+
+  .photo-section{margin-top:12px;}
+  .photo-section > label{font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--text-faint); text-transform:uppercase; margin-bottom:6px; display:block;}
+  .photo-strip{display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start;}
+  .photo-thumb{
+    position:relative; width:64px; height:64px; border-radius:7px; overflow:hidden;
+    border:1px solid var(--border); flex-shrink:0; cursor:pointer; background:var(--bg-input);
+  }
+  .photo-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .photo-remove{
+    position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:50%;
+    background:rgba(10,14,20,0.85); border:none; color:#fff; font-size:10px; line-height:1; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .photo-remove:hover{background:var(--fail);}
+  .photo-add-btn{
+    width:64px; height:64px; border-radius:7px; border:1px dashed var(--border); background:none;
+    color:var(--text-faint); cursor:pointer; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:2px; font-family:'JetBrains Mono', monospace; font-size:8.5px; flex-shrink:0;
+  }
+  .photo-add-btn:hover{border-color:var(--accent); color:var(--accent);}
+
+  .sync-banner{
+    display:none; position:fixed; bottom:14px; left:50%; transform:translateX(-50%); z-index:300;
+    background:#7c2d12; color:#fff; font-family:'JetBrains Mono', monospace; font-size:11.5px;
+    padding:9px 16px; border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,0.3); max-width:90vw; text-align:center;
+  }
+
+  .lightbox{
+    display:none; position:fixed; inset:0; background:rgba(4,8,12,0.9); z-index:999;
+    align-items:center; justify-content:center; padding:30px; cursor:zoom-out;
+  }
+  .lightbox.open{display:flex;}
+  .lightbox img{max-width:100%; max-height:100%; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,0.5);}
+
+  .add-verif-btn{
+    display:flex; align-items:center; gap:7px; justify-content:center; width:100%;
+    margin-top:12px; background:none; border:1px dashed var(--border); color:var(--accent);
+    font-family:'JetBrains Mono', monospace; font-size:11.5px; padding:9px; border-radius:7px; cursor:pointer;
+  }
+  .add-verif-btn:hover{border-color:var(--accent); background:var(--bg-panel);}
+
+  /* Two-column layout: checklist + sticky side panel */
+  .checklist-layout{display:flex; gap:22px; align-items:flex-start;}
+  .main-col{flex:1; min-width:0;}
+  .side-col{width:230px; flex-shrink:0; position:sticky; top:20px;}
+
+  .summary-bar{
+    display:flex; flex-direction:column; gap:16px;
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:12px; padding:18px;
+    box-shadow:0 1px 3px rgba(16,60,40,0.05);
+  }
+  .summary-stats{display:grid; grid-template-columns:1fr 1fr; gap:14px 10px;}
+  .stat{display:flex; flex-direction:column; gap:2px;}
+  .stat .n{font-family:'Space Grotesk', sans-serif; font-size:20px; font-weight:700;}
+  .stat .l{font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-faint);}
+  .stat.ok .n{color:var(--ok);} .stat.fail .n{color:var(--fail);} .stat.na .n{color:var(--na);}
+  .bottom-actions{display:flex; flex-direction:column; gap:8px; padding-top:6px; border-top:1px solid var(--border-soft);}
+  .bottom-actions .btn{width:100%; justify-content:center;}
+
+  @media (max-width:900px){
+    .checklist-layout{flex-direction:column;}
+    .side-col{position:static; width:100%; top:auto;}
+    .summary-stats{grid-template-columns:repeat(4,1fr);}
+    .bottom-actions{flex-direction:row; flex-wrap:wrap; border-top:none; padding-top:0;}
+    .bottom-actions .btn{width:auto; flex:1 1 auto;}
+  }
+
+  @media (max-width:640px){
+    .ext-form-grid{grid-template-columns:1fr 1fr;}
+    .check-grid{grid-template-columns:1fr;}
+    header{align-items:flex-start;}
+    .summary-stats{grid-template-columns:1fr 1fr;}
+    .bottom-actions{flex-direction:column;}
+    .bottom-actions .btn{flex:1; justify-content:center;}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="eyebrow"><span class="dot"></span>Control de Verificación</div>
+      <h1>Inspección de Extintores</h1>
+    </div>
+    <button class="theme-toggle" id="themeToggle" title="Cambiar modo claro/oscuro">🌙</button>
+  </header>
+
+
+  <div id="mainView">
+    <div class="checklist-layout">
+      <div class="main-col">
+        <div class="toolbar">
+          <div class="search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="searchInput" placeholder="Buscar por número o ubicación...">
+          </div>
+          <button class="btn btn-subtle" id="toggleHistory">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            Historial
+          </button>
+          <button class="btn btn-subtle" id="toggleAddPanel">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Agregar zona nueva
+          </button>
+        </div>
+
+        <div class="inspection-meta">
+          <div class="field">
+            <label>Fecha de inspección</label>
+            <input type="date" id="metaFecha">
+          </div>
+          <div class="field">
+            <label>Inspector</label>
+            <input type="text" id="metaInspector" placeholder="Nombre del inspector">
+          </div>
+        </div>
+
+
+        <div class="add-panel" id="addPanel">
+          <h3>Agregar zona / extintor nuevo</h3>
+          <p class="add-panel-note">Para casos poco frecuentes en los que se necesite dar de alta una ubicación fuera de las 37 zonas fijas. Todos los campos son editables.</p>
+          <div class="add-grid">
+            <div class="field">
+              <label>Número</label>
+              <input type="text" id="addNumero" placeholder="38">
+            </div>
+            <div class="field">
+              <label>Ubicación</label>
+              <input type="text" id="addUbicacion" placeholder="Ubicación">
+            </div>
+            <div class="field">
+              <label>Agente</label>
+              <input type="text" id="addAgente" placeholder="CO2 / PQS">
+            </div>
+            <div class="field">
+              <label>Peso (kg)</label>
+              <input type="text" id="addPeso" placeholder="0">
+            </div>
+          </div>
+          <div class="add-actions">
+            <button class="btn btn-accent" id="addSaveBtn">Guardar</button>
+            <button class="btn" id="addCancelBtn">Cancelar</button>
+          </div>
+        </div>
+
+        <div id="zonaList"></div>
+      </div>
+
+      <aside class="side-col">
+        <div class="summary-bar">
+          <div class="summary-stats" id="summaryStats"></div>
+          <div class="bottom-actions">
+            <button class="btn btn-subtle" id="resetBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+              Reiniciar datos
+            </button>
+            <button class="btn" id="newMonthBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              Guardar mes
+            </button>
+            <button class="btn btn-accent" id="pdfBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Generar PDF
+            </button>
+            <button class="btn btn-accent" id="xlsBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Generar Excel
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="historyView" style="display:none;">
+    <div class="history-view-head">
+      <button class="btn btn-subtle" id="backToMain">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Volver al checklist
+      </button>
+      <h2>Historial de revisiones mensuales</h2>
+    </div>
+    <div class="search-box" style="margin-bottom:14px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="historySearch" placeholder="Buscar por mes o inspector...">
+    </div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+
+</div>
+
+
+<div class="lightbox" id="lightbox"><img id="lightboxImg" src="" alt="Evidencia"></div>
+
+<script>
+const TOTAL_ZONAS = 37;
+const SHARED_BACKUP_KEY = 'extintores_shared_backup_v1'; // respaldo local de lo COMPARTIDO (inventario, zonas, historial)
+const LOCAL_KEY = 'extintores_local_progress_v1';         // SOLO de este dispositivo (checks en curso, fecha, inspector)
+
+/* ---------- Firebase (solo inventario/zonas/historial se comparten entre dispositivos) ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyBHvJjJ58jhrTnCiawq5Go14MFyYiDuRTM",
+  authDomain: "comapa-checklist.firebaseapp.com",
+  databaseURL: "https://comapa-checklist-default-rtdb.firebaseio.com/",
+  projectId: "comapa-checklist",
+  storageBucket: "comapa-checklist.firebasestorage.app",
+  messagingSenderId: "295220567825",
+  appId: "1:295220567825:web:b94965ff10868b923976b0"
+};
+
+let firebaseApp = null;
+let db = null;
+let stateRef = null;
+let firebaseReady = false;
+
+try{
+  firebaseApp = firebase.initializeApp(firebaseConfig);
+  db = firebase.database();
+  stateRef = db.ref('compartido'); // { inventory, zonas, history } — NUNCA checks/meta en curso
+  firebaseReady = true;
+}catch(e){
+  console.warn('No se pudo inicializar Firebase, la app funcionará solo con almacenamiento local en este navegador.', e);
+}
+
+let lastSyncedFirebaseJSON = null; // último valor "de alambre" enviado/recibido de Firebase (inventory como arreglo)
+let lastLocalSharedJSON = null;    // último valor en formato natural de la app (inventory como objeto), para detectar cambios
+let saveDebounceTimer = null;
+
+const STATUS = { NONE:'none', OK:'ok', FAIL:'fail', NA:'na' };
+
+
+const CHECK_ITEMS = [
+  {key:'manometro', label:'Manómetro', short:'Manóm'},
+  {key:'tarjeta', label:'Tarjeta de inspección', short:'Tarj.'},
+  {key:'pasador', label:'Pasador de seguridad', short:'Pasad.'},
+  {key:'obstaculos', label:'Obstáculos', short:'Obst.'},
+  {key:'manija', label:'Manija de activación', short:'Manija'},
+  {key:'altura', label:'Altura y ubicación', short:'Altura'},
+  {key:'manguera', label:'Manguera y boquilla', short:'Mang.'},
+  {key:'senaletica', label:'Señalética', short:'Señal.'},
+  {key:'etiqueta', label:'Etiqueta de vigencia', short:'Etiq.'},
+  {key:'numeracion', label:'Numeración', short:'Núm.'},
+];
+
+// Datos reales extraídos de la hoja física (COMAPA SUR) como punto de partida.
+// Editables desde la propia página (buscar -> expandir -> editar campos).
+const SEED = [
+  ['CUARTO DE CONTROL DE MOTORES (bombas)','CO2','6.8'],
+  ['GALERÍA DE BOMBAS','PQS','9'],
+  ['PASILLO NORTE (sótano)','PQS','6'],
+  ['PASILLO CENTRO (sótano)','PQS','9'],
+  ['DESCARGA CLORO','CO2','6.8'],
+  ['SERVICIOS GENERALES','PQS','9'],
+  ['PASILLO SUR (sótano)','PQS','6.5'],
+  ['ANALIZADOR DE CALIDAD DEL AGUA (filtros sur)','PQS','9'],
+  ['OFICIALÍA DE PARTES','PQS','6'],
+  ['ATENCIÓN ACCESIBLE','CO2','6.8'],
+  ['CASA (atención a usuarios)','CO2','7.3'],
+  ['CASA (adentro de cajas)','CO2','2.3'],
+  ['CAJAS','',''],
+  ['ATENCIÓN A USUARIOS','PQS','9'],
+  ['FILTROS NORTE','PQS','9'],
+  ['PADRÓN Y CENSO','PQS','9'],
+  ['PROCESO DE DATOS','CO2','2.3'],
+  ['ATENCIÓN A USUARIOS (escaleras a procesos)','PQS','9'],
+  ['ATENCIÓN A USUARIOS (3)','PQS','6'],
+  ['PADRÓN Y CENSO (archivo)','PQS','9'],
+  ['LABORATORIO (afuera)','PQS','4.5'],
+  ['ARCHIVO (padrón y censo)','PQS','9'],
+  ['ARCHIVO (escaleras)','CO2','2.3'],
+  ['PRECLORACIÓN (sur)','PQS','9'],
+  ['LABORATORIO (adentro)','CO2','2.3'],
+  ['PRECLORACIÓN (nte)','CO2','6.8'],
+  ['GERENCIA TÉCNICA (afuera)','PQS','4.5'],
+  ['PROYECTOS (entrada)','CO2','7.3'],
+  ['GERENCIA GRAL (cocina)','',''],
+  ['GERENCIA TÉCNICA (puerta)','PQS','6'],
+  ['PROYECTOS (entrada)','PQS','4.5'],
+  ['PROYECTOS (pasillo)','PQS','9'],
+  ['PLANTAS Y TRATAMIENTOS','PQS','4.5'],
+  ['PROYECTOS (archivos)','PQS','4.5'],
+  ['VINCULACIÓN','PQS','4.5'],
+  ['GERENCIA TÉCN. (salida de emergencia)','PQS','1.5'],
+  ['RADIO (gerencia técnica)','PQS','6'],
+];
+
+let state = null;
+let expandedSet = new Set();
+let expandedHistorySet = new Set();
+let searchQuery = '';
+let historySearchQuery = '';
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+function blankChecks(){
+  const items = {};
+  CHECK_ITEMS.forEach(c => items[c.key] = STATUS.NONE);
+  return { items, obs:'', photos:[] };
+}
+
+function buildDefaultShared(){
+  const inventory = {};
+  const zonas = [];
+  for(let i=1;i<=TOTAL_ZONAS;i++){
+    const numero = String(i);
+    const [ubicacion, agente, peso] = SEED[i-1] || ['','',''];
+    inventory[numero] = { numero, ubicacion, agente, peso };
+    zonas.push({ primaryNumero:numero, extras:[] });
+  }
+  return { inventory, zonas, history:[] };
+}
+
+function buildDefaultLocal(inventory){
+  const checks = {};
+  Object.keys(inventory).forEach(numero => { checks[numero] = blankChecks(); });
+  return { checks, meta:{ fecha: todayISO(), inspector:'' } };
+}
+
+// Firebase Realtime Database ELIMINA los campos con arreglos vacíos al guardarlos (ej. extras: []
+// desaparece por completo). Esta función restaura extras como arreglo real en cada zona.
+function normalizeZonas(zonas){
+  return (Array.isArray(zonas) ? zonas : []).map(z => ({
+    primaryNumero: z.primaryNumero,
+    extras: Array.isArray(z.extras) ? z.extras : []
+  }));
+}
+
+function migrateHistory(history){
+  history.forEach(h => {
+    if(!h.meta) h.meta = { fecha: h.fecha, inspector: h.inspector };
+    if(!h.id) h.id = String(h.savedAt || Date.now());
+    if(h.zonas) h.zonas = normalizeZonas(h.zonas);
+  });
+}
+
+function migrateLocalChecks(checks){
+  Object.keys(checks || {}).forEach(numero => {
+    if(!Array.isArray(checks[numero].photos)) checks[numero].photos = [];
+  });
+}
+
+// Firebase Realtime Database convierte automáticamente los objetos cuyas llaves son
+// puramente numéricas (como nuestro inventario: "1".."37") en arreglos dispersos.
+// Para evitarlo, el inventario viaja como arreglo de registros hacia/desde Firebase,
+// y se reconstruye como objeto {numero: registro} para uso interno de la app.
+function inventoryToFirebaseArray(inventory){
+  return Object.keys(inventory).map(numero => inventory[numero]);
+}
+function inventoryFromFirebaseValue(value){
+  const inventory = {};
+  if(Array.isArray(value)){
+    value.forEach(rec => { if(rec && rec.numero != null) inventory[String(rec.numero)] = rec; });
+  } else if(value && typeof value === 'object'){
+    Object.keys(value).forEach(k => {
+      const rec = value[k];
+      if(rec && rec.numero != null) inventory[String(rec.numero)] = rec;
+    });
+  }
+  return inventory;
+}
+
+async function loadState(){
+  // 1) Parte COMPARTIDA: inventario, zonas y verificaciones extra, e historial de meses archivados.
+  let shared = null;
+  if(firebaseReady){
+    try{
+      const snapshot = await stateRef.get();
+      if(snapshot.exists()){
+        const raw = snapshot.val();
+        const inventory = inventoryFromFirebaseValue(raw.inventory);
+        const zonas = normalizeZonas(raw.zonas);
+        const history = Array.isArray(raw.history) ? raw.history : [];
+        migrateHistory(history);
+
+        if(Object.keys(inventory).length === 0 || zonas.length === 0){
+          // Dato compartido vacío/corrupto (por ejemplo por el bug de arreglo disperso de Firebase):
+          // restauramos las 37 zonas por defecto y las volvemos a publicar para arreglarlo para todos.
+          shared = buildDefaultShared();
+          shared.history = history;
+          lastSyncedFirebaseJSON = null; // forzamos a que se vuelva a publicar abajo
+          console.warn('El inventario compartido llegó vacío o corrupto; se restauró el default de 37 zonas.');
+        } else {
+          shared = { inventory, zonas, history };
+          lastSyncedFirebaseJSON = JSON.stringify(raw);
+        }
+      } else {
+        shared = buildDefaultShared();
+      }
+
+      if(!lastSyncedFirebaseJSON){
+        const wirePayload = {
+          inventory: inventoryToFirebaseArray(shared.inventory),
+          zonas: shared.zonas,
+          history: shared.history
+        };
+        lastSyncedFirebaseJSON = JSON.stringify(wirePayload);
+        stateRef.set(wirePayload).catch(err => console.warn('No se pudo publicar/restaurar el estado compartido en Firebase', err));
+      }
+      lastLocalSharedJSON = JSON.stringify(shared);
+      try{ localStorage.setItem(SHARED_BACKUP_KEY, lastLocalSharedJSON); }catch(e){}
+    }catch(e){
+      console.warn('No se pudo leer de Firebase, usando respaldo local si existe.', e);
+      showSyncBanner('Sin conexión con Firebase — usando el último inventario/historial guardado en este navegador.');
+    }
+  }
+  if(!shared){
+    try{
+      const raw = localStorage.getItem(SHARED_BACKUP_KEY);
+      if(raw){ shared = JSON.parse(raw); shared.zonas = normalizeZonas(shared.zonas); migrateHistory(shared.history || (shared.history = [])); }
+    }catch(e){}
+  }
+  if(!shared || !Array.isArray(shared.zonas) || shared.zonas.length === 0){
+    shared = buildDefaultShared();
+  }
+
+  // 2) Parte LOCAL: checks/observaciones/fotos EN CURSO de este dispositivo, y fecha/inspector de la ronda actual.
+  //    Esto nunca se sube a Firebase, para que dos personas puedan marcar checklists distintos sin pisarse.
+  let local = null;
+  try{
+    const raw = localStorage.getItem(LOCAL_KEY);
+    if(raw) local = JSON.parse(raw);
+  }catch(e){}
+  if(!local) local = buildDefaultLocal(shared.inventory);
+  migrateLocalChecks(local.checks);
+  Object.keys(shared.inventory).forEach(numero => {
+    if(!local.checks[numero]) local.checks[numero] = blankChecks();
+  });
+  if(!local.meta) local.meta = { fecha: todayISO(), inspector:'' };
+
+  return {
+    inventory: shared.inventory,
+    zonas: shared.zonas,
+    history: shared.history,
+    checks: local.checks,
+    meta: local.meta
+  };
+}
+
+function saveState(){
+  // Local: siempre y de inmediato (checks/observaciones/fotos/fecha/inspector de ESTA ronda, en este dispositivo).
+  try{
+    localStorage.setItem(LOCAL_KEY, JSON.stringify({ checks: state.checks, meta: state.meta }));
+  }catch(e){ console.warn('No se pudo guardar el progreso local', e); }
+
+  // Compartido: inventario/zonas/historial. Solo se sube a Firebase si de verdad cambió algo de esto
+  // (así marcar un check no dispara una escritura compartida ni le llega nada a otros dispositivos).
+  const sharedNatural = { inventory: state.inventory, zonas: state.zonas, history: state.history };
+  const sharedNaturalJSON = JSON.stringify(sharedNatural);
+  try{ localStorage.setItem(SHARED_BACKUP_KEY, sharedNaturalJSON); }catch(e){}
+
+  if(!firebaseReady) return;
+  if(sharedNaturalJSON === lastLocalSharedJSON) return;
+  lastLocalSharedJSON = sharedNaturalJSON;
+
+  if(saveDebounceTimer) clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(() => {
+    const wirePayload = {
+      inventory: inventoryToFirebaseArray(state.inventory), // evita el bug de arreglo disperso de Firebase
+      zonas: state.zonas,
+      history: state.history
+    };
+    lastSyncedFirebaseJSON = JSON.stringify(wirePayload);
+    stateRef.set(wirePayload).catch(err => {
+      console.warn('No se pudo sincronizar el inventario/historial con Firebase', err);
+      showSyncBanner('No se pudo sincronizar el inventario/historial (revisa tu conexión). Se reintentará.');
+    });
+  }, 500);
+}
+
+function listenForRemoteChanges(){
+  if(!firebaseReady) return;
+  stateRef.on('value', (snapshot) => {
+    if(!snapshot.exists()) return;
+    const raw = snapshot.val();
+    const incomingWireJSON = JSON.stringify(raw);
+    if(incomingWireJSON === lastSyncedFirebaseJSON) return; // es el eco de nuestro propio guardado, ignorar
+
+    const incomingInventory = inventoryFromFirebaseValue(raw.inventory);
+    const incomingZonas = normalizeZonas(raw.zonas);
+    const incomingHistory = Array.isArray(raw.history) ? raw.history : [];
+
+    if(Object.keys(incomingInventory).length === 0 || incomingZonas.length === 0){
+      // Llegó vacío/corrupto desde otro dispositivo o por el bug de arreglo disperso de Firebase: lo ignoramos
+      // para no vaciar la lista aquí también, y forzamos una republicación del estado actual como corrección.
+      console.warn('Se recibió un inventario/zonas vacío desde Firebase; se ignora y se vuelve a publicar el estado actual.');
+      lastLocalSharedJSON = null; // fuerza a que el siguiente saveState() vuelva a publicar
+      saveState();
+      return;
+    }
+
+    migrateHistory(incomingHistory);
+    lastSyncedFirebaseJSON = incomingWireJSON;
+
+    // Solo actualizamos inventario/zonas/historial (lo compartido).
+    // Los checks/observaciones/fotos/fecha/inspector EN CURSO de este dispositivo no se tocan.
+    state.inventory = incomingInventory;
+    state.zonas = incomingZonas;
+    state.history = incomingHistory;
+    lastLocalSharedJSON = JSON.stringify({ inventory: state.inventory, zonas: state.zonas, history: state.history });
+
+    // Si llegó una zona/verificación nueva de otro dispositivo, le creamos un check en blanco local.
+    Object.keys(state.inventory).forEach(numero => {
+      if(!state.checks[numero]) state.checks[numero] = blankChecks();
+    });
+    // Si una verificación fue eliminada en otro dispositivo, quitamos su check local huérfano.
+    Object.keys(state.checks).forEach(numero => {
+      if(!state.inventory[numero]) delete state.checks[numero];
+    });
+
+    try{ localStorage.setItem(SHARED_BACKUP_KEY, lastLocalSharedJSON); }catch(e){}
+    try{ localStorage.setItem(LOCAL_KEY, JSON.stringify({ checks: state.checks, meta: state.meta })); }catch(e){}
+
+    renderList(); applySearchFilter();
+    if(document.getElementById('historyView').style.display !== 'none'){
+      renderHistoryList();
+    }
+  });
+
+  db.ref('.info/connected').on('value', (snap) => {
+    if(snap.val() === true){ hideSyncBanner(); }
+    else { showSyncBanner('Sin conexión con Firebase — trabajando localmente, se sincronizará al reconectar.'); }
+  });
+}
+
+function showSyncBanner(msg){
+  let el = document.getElementById('syncBanner');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'syncBanner';
+    el.className = 'sync-banner';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideSyncBanner(){
+  const el = document.getElementById('syncBanner');
+  if(el) el.style.display = 'none';
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML;
+}
+
+function normalizeText(s){
+  return String(s == null ? '' : s)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function nextExtraNumero(zona){
+  const letter = String.fromCharCode(66 + zona.extras.length); // B, C, D...
+  return `${zona.primaryNumero}-${letter}`;
+}
+
+function nextNewZonaNumero(){
+  let max = 0;
+  state.zonas.forEach(z => {
+    const n = parseInt(z.primaryNumero, 10);
+    if(!isNaN(n) && n > max) max = n;
+  });
+  return String(max + 1);
+}
+
+function computeProgress(numero, checksSource){
+  const src = checksSource || state.checks;
+  const c = src[numero];
+  if(!c) return {marked:0, ok:0, fail:0, na:0, total:CHECK_ITEMS.length};
+  let marked=0, ok=0, fail=0, na=0;
+  CHECK_ITEMS.forEach(ci => {
+    const v = c.items[ci.key];
+    if(v !== STATUS.NONE) marked++;
+    if(v === STATUS.OK) ok++;
+    if(v === STATUS.FAIL) fail++;
+    if(v === STATUS.NA) na++;
+  });
+  return {marked, ok, fail, na, total:CHECK_ITEMS.length};
+}
+
+function cssEscape(s){
+  return String(s).replace(/[^a-zA-Z0-9_-]/g, c => '\\' + c);
+}
+
+function resizeImageFile(file, maxDim, quality){
+  maxDim = maxDim || 900;
+  quality = quality || 0.72;
+  return new Promise((resolve) => {
+    if(!file || !file.type || file.type.indexOf('image/') !== 0){ resolve(null); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * (maxDim / w)); w = maxDim; }
+        else if(h > maxDim){ w = Math.round(w * (maxDim / h)); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(null);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+function openLightbox(src){
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lightboxImg').src = '';
+}
+
+/* ---------- Rendering ---------- */
+
+function renderChecklistGrid(numero){
+  const c = state.checks[numero];
+  return `<div class="check-grid">` + CHECK_ITEMS.map(ci => {
+    const v = c.items[ci.key];
+    return `
+      <div class="check-item">
+        <span class="ci-label">${escapeHtml(ci.label)}</span>
+        <div class="segmented" data-numero="${numero}" data-key="${ci.key}">
+          <button data-value="ok" class="${v===STATUS.OK?'sel-ok':''}">✓</button>
+          <button data-value="fail" class="${v===STATUS.FAIL?'sel-fail':''}">✗</button>
+          <button data-value="na" class="${v===STATUS.NA?'sel-na':''}">N/A</button>
+        </div>
+      </div>`;
+  }).join('') + `</div>`;
+}
+
+function renderExtCard(numero, isPrimary, zonaId){
+  const inv = state.inventory[numero];
+  const c = state.checks[numero];
+  const label = isPrimary ? 'Extintor principal' : `Verificación extra · ${numero}`;
+  return `
+    <div class="ext-card" data-ext-numero="${numero}">
+      <div class="ext-card-head">
+        <span class="label">${escapeHtml(label)}</span>
+        ${isPrimary ? '' : `<button class="ext-remove" data-remove-extra="${numero}" data-zona="${zonaId}" title="Eliminar verificación">✕</button>`}
+      </div>
+      <div class="ext-form-grid">
+        <div>
+          <span class="mini-label">Ubicación</span>
+          <input type="text" data-field="ubicacion" data-numero="${numero}" value="${escapeHtml(inv.ubicacion)}" placeholder="Ubicación">
+        </div>
+        <div>
+          <span class="mini-label">Agente</span>
+          <input type="text" data-field="agente" data-numero="${numero}" value="${escapeHtml(inv.agente)}" placeholder="CO2 / PQS">
+        </div>
+        <div>
+          <span class="mini-label">Peso (kg)</span>
+          <input type="text" data-field="peso" data-numero="${numero}" value="${escapeHtml(inv.peso)}" placeholder="0">
+        </div>
+      </div>
+      ${renderChecklistGrid(numero)}
+      <div class="photo-section">
+        <label>Evidencia fotográfica</label>
+        <div class="photo-strip" data-photo-strip="${numero}">
+          ${(c.photos||[]).map((p,i) => `
+            <div class="photo-thumb" data-photo-view="${numero}" data-idx="${i}">
+              <img src="${p}" alt="Evidencia ${numero}">
+              <button class="photo-remove" data-remove-photo="${numero}" data-idx="${i}" title="Eliminar foto">✕</button>
+            </div>
+          `).join('')}
+          <button class="photo-add-btn" data-add-photo="${numero}" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Foto</span>
+          </button>
+          <input type="file" accept="image/*" multiple data-photo-file-input="${numero}" style="display:none">
+        </div>
+      </div>
+      <div class="obs-field">
+        <label>Observaciones</label>
+        <textarea data-field="obs" data-numero="${numero}" placeholder="Notas, hallazgos, acciones correctivas...">${escapeHtml(c.obs)}</textarea>
+      </div>
+    </div>
+  `;
+}
+
+function zonaMatchesSearch(zona){
+  if(!searchQuery) return true;
+  const q = normalizeText(searchQuery);
+  const numeros = [zona.primaryNumero, ...zona.extras];
+  return numeros.some(n => {
+    const inv = state.inventory[n];
+    if(!inv) return false;
+    return normalizeText(n).includes(q) || normalizeText(inv.ubicacion).includes(q);
+  });
+}
+
+function renderZonaRow(zona){
+  const inv = state.inventory[zona.primaryNumero];
+  const isExpanded = expandedSet.has(zona.primaryNumero);
+  const prog = computeProgress(zona.primaryNumero);
+  let progClass = '';
+  if(prog.marked === prog.total) progClass = 'complete';
+  else if(prog.marked > 0) progClass = 'partial';
+
+  const extrasCards = zona.extras.map(n => renderExtCard(n, false, zona.primaryNumero)).join('');
+
+  return `
+    <div class="zona-row ${isExpanded?'expanded':''}" data-zona-numero="${zona.primaryNumero}" style="${zonaMatchesSearch(zona)?'':'display:none;'}">
+      <div class="zona-head" data-toggle-zona="${zona.primaryNumero}">
+        <span class="zona-num">${zona.primaryNumero}</span>
+        <span class="zona-ubi ${inv.ubicacion?'':'empty'}" id="sum-ubi-${zona.primaryNumero}">${inv.ubicacion ? escapeHtml(inv.ubicacion) : 'Sin nombre asignado'}</span>
+        <span class="zona-chip" id="sum-chip-${zona.primaryNumero}">${escapeHtml(inv.agente||'—')} · ${escapeHtml(inv.peso||'—')}kg</span>
+        ${zona.extras.length ? `<span class="zona-extra-badge">+${zona.extras.length} extra</span>` : ''}
+        <span class="zona-progress ${progClass}" id="sum-progress-${zona.primaryNumero}">${prog.marked}/${prog.total}</span>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="zona-body">
+        ${renderExtCard(zona.primaryNumero, true, zona.primaryNumero)}
+        ${extrasCards}
+        <button class="add-verif-btn" data-add-verif="${zona.primaryNumero}">+ Añadir verificación</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderList(){
+  const container = document.getElementById('zonaList');
+  container.innerHTML = state.zonas.map(renderZonaRow).join('');
+  renderSummary();
+}
+
+function renderSummary(){
+  let ok=0, fail=0, na=0;
+  Object.keys(state.checks).forEach(numero => {
+    const p = computeProgress(numero);
+    ok += p.ok; fail += p.fail; na += p.na;
+  });
+  const totalZonas = state.zonas.length;
+  const zonasRevisadas = state.zonas.filter(z => {
+    const p = computeProgress(z.primaryNumero);
+    return p.marked === p.total;
+  }).length;
+  document.getElementById('summaryStats').innerHTML = `
+    <div class="stat ok"><span class="n">${ok}</span><span class="l">Cumple</span></div>
+    <div class="stat fail"><span class="n">${fail}</span><span class="l">No cumple</span></div>
+    <div class="stat na"><span class="n">${na}</span><span class="l">N/A</span></div>
+    <div class="stat"><span class="n">${zonasRevisadas}/${totalZonas}</span><span class="l">Zonas revisadas</span></div>
+  `;
+}
+
+function updateRowSummary(numero){
+  const inv = state.inventory[numero];
+  const ubiEl = document.getElementById(`sum-ubi-${numero}`);
+  const chipEl = document.getElementById(`sum-chip-${numero}`);
+  if(ubiEl){
+    ubiEl.textContent = inv.ubicacion || 'Sin nombre asignado';
+    ubiEl.classList.toggle('empty', !inv.ubicacion);
+  }
+  if(chipEl){ chipEl.textContent = `${inv.agente||'—'} · ${inv.peso||'—'}kg`; }
+}
+
+function applySearchFilter(){
+  document.querySelectorAll('.zona-row').forEach(row => {
+    const numero = row.getAttribute('data-zona-numero');
+    const zona = state.zonas.find(z => z.primaryNumero === numero);
+    row.style.display = zonaMatchesSearch(zona) ? '' : 'none';
+  });
+}
+
+/* ---------- Event delegation ---------- */
+
+function initEvents(){
+  const list = document.getElementById('zonaList');
+
+  list.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-toggle-zona]');
+    if(toggle && !e.target.closest('.segmented') ){
+      const numero = toggle.getAttribute('data-toggle-zona');
+      if(expandedSet.has(numero)) expandedSet.delete(numero); else expandedSet.add(numero);
+      renderList(); applySearchFilter();
+      return;
+    }
+
+    const segBtn = e.target.closest('.segmented button');
+    if(segBtn){
+      const seg = segBtn.closest('.segmented');
+      const numero = seg.getAttribute('data-numero');
+      const key = seg.getAttribute('data-key');
+      const value = segBtn.getAttribute('data-value');
+      const current = state.checks[numero].items[key];
+      state.checks[numero].items[key] = (current === value) ? STATUS.NONE : value;
+      saveState();
+      renderList(); applySearchFilter();
+      return;
+    }
+
+    const removeBtn = e.target.closest('[data-remove-extra]');
+    if(removeBtn){
+      const numero = removeBtn.getAttribute('data-remove-extra');
+      const zonaNumero = removeBtn.getAttribute('data-zona');
+      const zona = state.zonas.find(z => z.primaryNumero === zonaNumero);
+      zona.extras = zona.extras.filter(n => n !== numero);
+      delete state.inventory[numero];
+      delete state.checks[numero];
+      saveState();
+      renderList(); applySearchFilter();
+      return;
+    }
+
+    const addVerif = e.target.closest('[data-add-verif]');
+    if(addVerif){
+      const zonaNumero = addVerif.getAttribute('data-add-verif');
+      const zona = state.zonas.find(z => z.primaryNumero === zonaNumero);
+      const numero = nextExtraNumero(zona);
+      const primaryInv = state.inventory[zona.primaryNumero];
+      state.inventory[numero] = { numero, ubicacion:primaryInv.ubicacion, agente:'', peso:'' };
+      state.checks[numero] = blankChecks();
+      zona.extras.push(numero);
+      expandedSet.add(zonaNumero);
+      saveState();
+      renderList(); applySearchFilter();
+      return;
+    }
+
+    const addPhoto = e.target.closest('[data-add-photo]');
+    if(addPhoto){
+      const numero = addPhoto.getAttribute('data-add-photo');
+      const fileInput = list.querySelector(`[data-photo-file-input="${cssEscape(numero)}"]`);
+      if(fileInput) fileInput.click();
+      return;
+    }
+
+    const removePhoto = e.target.closest('[data-remove-photo]');
+    if(removePhoto){
+      e.stopPropagation();
+      const numero = removePhoto.getAttribute('data-remove-photo');
+      const idx = Number(removePhoto.getAttribute('data-idx'));
+      state.checks[numero].photos.splice(idx, 1);
+      saveState();
+      renderList(); applySearchFilter();
+      return;
+    }
+
+    const viewPhoto = e.target.closest('[data-photo-view]');
+    if(viewPhoto){
+      const numero = viewPhoto.getAttribute('data-photo-view');
+      const idx = Number(viewPhoto.getAttribute('data-idx'));
+      const src = state.checks[numero].photos[idx];
+      openLightbox(src);
+      return;
+    }
+  });
+
+  list.addEventListener('change', (e) => {
+    const fileInput = e.target.closest('[data-photo-file-input]');
+    if(!fileInput || !fileInput.files || !fileInput.files.length) return;
+    const numero = fileInput.getAttribute('data-photo-file-input');
+    const files = Array.from(fileInput.files);
+    Promise.all(files.map(f => resizeImageFile(f))).then(dataUrls => {
+      if(!state.checks[numero].photos) state.checks[numero].photos = [];
+      state.checks[numero].photos.push(...dataUrls.filter(Boolean));
+      try{
+        saveState();
+      }catch(err){
+        alert('No se pudieron guardar todas las fotos: el navegador se quedó sin espacio de almacenamiento local. Elimina alguna foto anterior o usa menos imágenes por extintor.');
+      }
+      renderList(); applySearchFilter();
+    });
+    fileInput.value = '';
+  });
+
+  list.addEventListener('input', (e) => {
+    const t = e.target;
+    const field = t.getAttribute('data-field');
+    const numero = t.getAttribute('data-numero');
+    if(!field || !numero) return;
+    if(field === 'obs'){
+      state.checks[numero].obs = t.value;
+    } else {
+      state.inventory[numero][field] = t.value;
+      if(field === 'ubicacion' || field === 'agente' || field === 'peso'){
+        updateRowSummary(numero);
+      }
+    }
+    saveState();
+  });
+
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    searchQuery = e.target.value.trim();
+    applySearchFilter();
+  });
+
+  document.getElementById('metaFecha').addEventListener('input', (e) => {
+    state.meta.fecha = e.target.value; saveState();
+  });
+  document.getElementById('metaInspector').addEventListener('input', (e) => {
+    state.meta.inspector = e.target.value; saveState();
+  });
+
+  document.getElementById('toggleAddPanel').addEventListener('click', () => {
+    const panel = document.getElementById('addPanel');
+    panel.classList.toggle('open');
+    if(panel.classList.contains('open')) populateAddPanel();
+  });
+  document.getElementById('addCancelBtn').addEventListener('click', () => {
+    document.getElementById('addPanel').classList.remove('open');
+  });
+  document.getElementById('addSaveBtn').addEventListener('click', saveNewZona);
+
+  document.getElementById('newMonthBtn').addEventListener('click', generateNewMonth);
+  document.getElementById('resetBtn').addEventListener('click', resetCurrentProgress);
+  document.getElementById('pdfBtn').addEventListener('click', () => generatePDF());
+  document.getElementById('xlsBtn').addEventListener('click', () => generateExcel());
+
+  document.getElementById('toggleHistory').addEventListener('click', () => {
+    document.getElementById('mainView').style.display = 'none';
+    document.getElementById('historyView').style.display = 'block';
+    renderHistoryList();
+    window.scrollTo(0,0);
+  });
+  document.getElementById('backToMain').addEventListener('click', () => {
+    document.getElementById('historyView').style.display = 'none';
+    document.getElementById('mainView').style.display = 'block';
+    window.scrollTo(0,0);
+  });
+  document.getElementById('historySearch').addEventListener('input', (e) => {
+    historySearchQuery = e.target.value.trim();
+    renderHistoryList();
+  });
+  document.getElementById('historyList').addEventListener('click', (e) => {
+    const editBtn = e.target.closest('[data-history-edit]');
+    if(editBtn){
+      const id = editBtn.getAttribute('data-history-edit');
+      editHistoryEntry(id);
+      return;
+    }
+    const pdfBtn = e.target.closest('[data-history-pdf]');
+    if(pdfBtn){
+      const id = pdfBtn.getAttribute('data-history-pdf');
+      const h = state.history.find(x => String(x.id) === id);
+      if(h) generatePDF(h);
+      return;
+    }
+    const xlsBtn = e.target.closest('[data-history-xls]');
+    if(xlsBtn){
+      const id = xlsBtn.getAttribute('data-history-xls');
+      const h = state.history.find(x => String(x.id) === id);
+      if(h) generateExcel(h);
+      return;
+    }
+    const delBtn = e.target.closest('[data-history-delete]');
+    if(delBtn){
+      const id = delBtn.getAttribute('data-history-delete');
+      const ok = confirm('¿Eliminar esta revisión del historial? Esta acción no se puede deshacer.');
+      if(ok){
+        state.history = state.history.filter(x => String(x.id) !== id);
+        saveState();
+        renderHistoryList();
+      }
+      return;
+    }
+    const toggle = e.target.closest('[data-history-toggle]');
+    if(toggle){
+      const id = toggle.getAttribute('data-history-toggle');
+      if(expandedHistorySet.has(id)) expandedHistorySet.delete(id); else expandedHistorySet.add(id);
+      renderHistoryList();
+      return;
+    }
+  });
+
+  document.getElementById('lightbox').addEventListener('click', closeLightbox);
+
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const isDark = document.body.classList.contains('dark-mode');
+    applyTheme(isDark ? 'light' : 'dark');
+  });
+}
+
+function applyTheme(theme){
+  document.body.classList.toggle('dark-mode', theme === 'dark');
+  document.getElementById('themeToggle').textContent = theme === 'dark' ? '☀️' : '🌙';
+  try{ localStorage.setItem('extintores_theme', theme); }catch(e){}
+}
+
+function populateAddPanel(){
+  document.getElementById('addNumero').value = nextNewZonaNumero();
+  document.getElementById('addUbicacion').value = '';
+  document.getElementById('addAgente').value = '';
+  document.getElementById('addPeso').value = '';
+}
+
+function saveNewZona(){
+  const numero = document.getElementById('addNumero').value.trim();
+  if(!numero){ alert('Ingresa un número para la nueva zona.'); return; }
+  if(state.inventory[numero]){ alert('Ese número ya existe. Usa uno distinto.'); return; }
+
+  const ubicacion = document.getElementById('addUbicacion').value;
+  const agente = document.getElementById('addAgente').value;
+  const peso = document.getElementById('addPeso').value;
+
+  state.inventory[numero] = { numero, ubicacion, agente, peso };
+  state.checks[numero] = blankChecks();
+  state.zonas.push({ primaryNumero:numero, extras:[] });
+  expandedSet.add(numero);
+
+  saveState();
+  document.getElementById('addPanel').classList.remove('open');
+  renderList(); applySearchFilter();
+}
+
+function generateNewMonth(){
+  const ok = confirm('Esto guardará la revisión actual en el Historial y reiniciará todos los checks, observaciones y fotos para un nuevo mes. El inventario (números, ubicaciones, agentes, pesos) se mantiene igual. ¿Continuar?');
+  if(!ok) return;
+
+  const snapshot = {
+    id: String(Date.now()),
+    fecha: state.meta.fecha,
+    inspector: state.meta.inspector,
+    meta: { fecha: state.meta.fecha, inspector: state.meta.inspector },
+    savedAt: new Date().toISOString(),
+    inventory: JSON.parse(JSON.stringify(state.inventory)),
+    zonas: JSON.parse(JSON.stringify(state.zonas)),
+    checks: JSON.parse(JSON.stringify(state.checks)),
+  };
+  if(!Array.isArray(state.history)) state.history = [];
+  state.history.unshift(snapshot);
+
+  Object.keys(state.checks).forEach(numero => {
+    state.checks[numero] = blankChecks();
+  });
+  state.meta.fecha = todayISO();
+  state.meta.inspector = '';
+  document.getElementById('metaFecha').value = state.meta.fecha;
+  document.getElementById('metaInspector').value = '';
+  expandedSet.clear();
+  searchQuery = '';
+  document.getElementById('searchInput').value = '';
+
+  saveState();
+  renderList(); applySearchFilter();
+  renderHistoryList();
+  window.scrollTo(0,0);
+}
+
+function resetCurrentProgress(){
+  const ok = confirm('Esto borrará el progreso actual (checks, observaciones y fotos) de esta revisión SIN guardarlo en el historial. Útil si quieres empezar de nuevo por equivocación. ¿Continuar?');
+  if(!ok) return;
+  Object.keys(state.checks).forEach(numero => {
+    state.checks[numero] = blankChecks();
+  });
+  expandedSet.clear();
+  saveState();
+  renderList(); applySearchFilter();
+  window.scrollTo(0,0);
+}
+
+
+function editHistoryEntry(id){
+  const h = state.history.find(x => String(x.id) === id);
+  if(!h) return;
+  const ok = confirm(`Esto cargará los checks/observaciones/fotos de la revisión de "${h.fecha || 'sin fecha'}" en tu checklist actual (solo en este dispositivo) y la quitará del historial compartido mientras la editas — cuando termines, usa "Guardar mes" para archivarla otra vez. El inventario y las zonas actuales no se modifican. ¿Continuar?`);
+  if(!ok) return;
+
+  // Solo restauramos lo LOCAL (checks/obs/fotos + fecha/inspector de esa ronda).
+  // El inventario/zonas siguen siendo los actuales y compartidos, para no revertir cambios estructurales recientes.
+  const restoredChecks = JSON.parse(JSON.stringify(h.checks));
+  Object.keys(state.inventory).forEach(numero => {
+    if(!restoredChecks[numero]) restoredChecks[numero] = blankChecks();
+  });
+  state.checks = restoredChecks;
+  state.meta = { fecha: h.fecha || todayISO(), inspector: h.inspector || '' };
+  state.history = state.history.filter(x => String(x.id) !== id);
+
+  saveState();
+  document.getElementById('metaFecha').value = state.meta.fecha;
+  document.getElementById('metaInspector').value = state.meta.inspector;
+
+  document.getElementById('historyView').style.display = 'none';
+  document.getElementById('mainView').style.display = 'block';
+  renderList(); applySearchFilter();
+  window.scrollTo(0,0);
+}
+
+/* ---------- Historial ---------- */
+
+function renderHistoryZonaTable(h){
+  const rows = [];
+  h.zonas.forEach(zona => {
+    [zona.primaryNumero, ...zona.extras].forEach(numero => {
+      const invN = h.inventory[numero];
+      if(!invN) return;
+      const p = computeProgress(numero, h.checks);
+      const cN = h.checks[numero];
+      const hasObs = cN && cN.obs && cN.obs.trim() !== '';
+      const hasPhotos = cN && cN.photos && cN.photos.length > 0;
+      rows.push(`
+        <div class="history-row">
+          <span class="history-num">${escapeHtml(numero)}</span>
+          <span class="history-ubi">${escapeHtml(invN.ubicacion || 'Sin nombre')}</span>
+          <span class="history-stats">${p.ok}✓ / ${p.fail}✗ / ${p.na}N-A</span>
+          ${hasObs ? '<span class="history-flag" title="Tiene observaciones">📝</span>' : ''}
+          ${hasPhotos ? '<span class="history-flag" title="Tiene fotos">📷</span>' : ''}
+        </div>
+      `);
+    });
+  });
+  return `<div class="history-zona-table">${rows.join('')}</div>`;
+}
+
+function renderHistoryCard(h){
+  const expanded = expandedHistorySet.has(h.id);
+  let ok=0, fail=0, na=0;
+  Object.keys(h.checks).forEach(numero => {
+    const p = computeProgress(numero, h.checks);
+    ok += p.ok; fail += p.fail; na += p.na;
+  });
+  return `
+    <div class="history-card">
+      <div class="history-card-head" data-history-toggle="${h.id}">
+        <div class="history-card-title">
+          <span class="history-month">${escapeHtml(h.fecha || 'Sin fecha')}</span>
+          <span class="history-inspector">${escapeHtml(h.inspector || 'Inspector no especificado')} · guardado ${new Date(h.savedAt).toLocaleDateString('es-MX')}</span>
+        </div>
+        <div class="history-card-stats">
+          <span class="hstat ok">${ok} ✓</span>
+          <span class="hstat fail">${fail} ✗</span>
+          <span class="hstat na">${na} N/A</span>
+        </div>
+        <div class="history-card-actions">
+          <button class="btn btn-small" data-history-edit="${h.id}" title="Volver a editar esta revisión">✎ Editar</button>
+          <button class="btn btn-small btn-accent" data-history-pdf="${h.id}">PDF</button>
+          <button class="btn btn-small btn-accent" data-history-xls="${h.id}">Excel</button>
+          <button class="btn btn-small btn-subtle" data-history-delete="${h.id}">✕</button>
+        </div>
+      </div>
+      ${expanded ? `<div class="history-card-body">${renderHistoryZonaTable(h)}</div>` : ''}
+    </div>
+  `;
+}
+
+const MESES_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+function monthYearKey(fecha){
+  if(!fecha) return 'sin-fecha';
+  const parts = String(fecha).split('-');
+  return parts.length >= 2 ? `${parts[0]}-${parts[1]}` : 'sin-fecha';
+}
+
+function monthYearLabel(fecha){
+  if(!fecha) return 'Sin fecha';
+  const parts = String(fecha).split('-');
+  if(parts.length < 2) return 'Sin fecha';
+  const year = parts[0];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  if(isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) return 'Sin fecha';
+  const name = MESES_ES[monthIdx];
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`;
+}
+
+function renderHistoryList(){
+  const container = document.getElementById('historyList');
+  const q = normalizeText(historySearchQuery);
+  const list = (state.history || []).filter(h => {
+    if(!q) return true;
+    return normalizeText(h.fecha).includes(q)
+      || normalizeText(h.inspector).includes(q)
+      || normalizeText(monthYearLabel(h.fecha)).includes(q);
+  });
+  if(!list.length){
+    container.innerHTML = `<p class="history-empty">${state.history && state.history.length ? 'No hay resultados para tu búsqueda.' : 'Todavía no hay revisiones guardadas. Usa "Guardar mes" para archivar la revisión actual.'}</p>`;
+    return;
+  }
+
+  const groups = [];
+  const groupIndexByKey = {};
+  list.forEach(h => {
+    const key = monthYearKey(h.fecha);
+    if(!(key in groupIndexByKey)){
+      groupIndexByKey[key] = groups.length;
+      groups.push({ key, label: monthYearLabel(h.fecha), items: [] });
+    }
+    groups[groupIndexByKey[key]].items.push(h);
+  });
+
+  container.innerHTML = groups.map(g => `
+    <div class="history-group">
+      <div class="history-group-label">${escapeHtml(g.label)}</div>
+      ${g.items.map(renderHistoryCard).join('')}
+    </div>
+  `).join('');
+}
+
+
+/* ---------- PDF ---------- */
+
+function statusSymbol(v){
+  if(v === STATUS.OK) return '✓';
+  if(v === STATUS.FAIL) return '✗';
+  if(v === STATUS.NA) return 'N/A';
+  return '—';
+}
+
+function generatePDF(source){
+  const data = source || state;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter', orientation:'portrait' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let y = 26;
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.setTextColor(14,157,94);
+  doc.text('COMAPA SUR · Inspección de Extintores', 20, y);
+  y += 14;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(90,90,90);
+  doc.text(`Fecha: ${data.meta.fecha || '—'}    Inspector: ${data.meta.inspector || '—'}`, 20, y);
+  y += 8;
+  doc.setDrawColor(200,200,200);
+  doc.line(20, y, pageWidth-20, y);
+  y += 6;
+
+  const head = [['N°','Ubicación','Agente','Peso', ...CHECK_ITEMS.map(c=>c.short), 'Observaciones']];
+  const body = [];
+
+  data.zonas.forEach(zona => {
+    [zona.primaryNumero, ...zona.extras].forEach(numero => {
+      const inv = data.inventory[numero];
+      const c = data.checks[numero];
+      if(!inv || !c) return;
+      body.push([
+        numero,
+        inv.ubicacion || '—',
+        inv.agente || '—',
+        inv.peso || '—',
+        ...CHECK_ITEMS.map(ci => statusSymbol(c.items[ci.key])),
+        c.obs || ''
+      ]);
+    });
+  });
+
+  doc.autoTable({
+    startY: y,
+    margin: {left:20, right:20, bottom:20},
+    head, body,
+    styles: { fontSize:6.2, cellPadding:2, textColor:[30,30,30], overflow:'linebreak', valign:'middle' },
+    headStyles: { fillColor:[14,120,80], textColor:255, fontStyle:'bold', fontSize:6, cellPadding:{top:3,bottom:3,left:1.5,right:1.5}, halign:'center' },
+    columnStyles: {
+      0:{cellWidth:15}, 1:{cellWidth:102}, 2:{cellWidth:26}, 3:{cellWidth:20},
+      4:{cellWidth:26},5:{cellWidth:26},6:{cellWidth:26},7:{cellWidth:26},8:{cellWidth:26},
+      9:{cellWidth:26},10:{cellWidth:26},11:{cellWidth:26},12:{cellWidth:26},13:{cellWidth:26},
+      14:{cellWidth:'auto'}
+    },
+    didParseCell: function(cellData){
+      if(cellData.section === 'body' && cellData.column.index >= 4 && cellData.column.index <= 13){
+        const val = cellData.cell.raw;
+        cellData.cell.styles.halign = 'center';
+        cellData.cell.styles.fontStyle = 'bold';
+        if(val === '✓'){ cellData.cell.styles.fillColor = [22,163,74]; cellData.cell.styles.textColor = [255,255,255]; }
+        else if(val === '✗'){ cellData.cell.styles.fillColor = [220,38,38]; cellData.cell.styles.textColor = [255,255,255]; }
+        else if(val === 'N/A'){ cellData.cell.styles.fillColor = [203,213,225]; cellData.cell.styles.textColor = [71,85,105]; }
+        else { cellData.cell.styles.fillColor = [244,244,244]; cellData.cell.styles.textColor = [190,190,190]; cellData.cell.styles.fontStyle = 'normal'; }
+      }
+    }
+  });
+
+  // Apéndice de evidencia fotográfica (páginas adicionales; no cuenta contra la hoja única del checklist)
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const withPhotos = [];
+  data.zonas.forEach(zona => {
+    [zona.primaryNumero, ...zona.extras].forEach(numero => {
+      const c = data.checks[numero];
+      if(c && c.photos && c.photos.length){
+        withPhotos.push({ numero, ubicacion:(data.inventory[numero]||{}).ubicacion || '', photos:c.photos });
+      }
+    });
+  });
+
+  if(withPhotos.length){
+    doc.addPage();
+    let px = 20, py = 30;
+    const thumbW = 172, thumbH = 130, gap = 12;
+    const cols = 3;
+    let col = 0;
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.setTextColor(14,157,94);
+    doc.text('Evidencia fotográfica', 20, py);
+    py += 20;
+    doc.setTextColor(30,30,30);
+
+    withPhotos.forEach(entry => {
+      entry.photos.forEach(src => {
+        if(py + thumbH + 20 > pageHeight - 20){
+          doc.addPage(); px = 20; py = 30; col = 0;
+        }
+        try{
+          doc.addImage(src, 'JPEG', px, py, thumbW, thumbH);
+        }catch(e){ /* imagen inválida, se omite */ }
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(70,70,70);
+        const label = `${entry.numero} — ${entry.ubicacion || ''}`;
+        doc.text(doc.splitTextToSize(label, thumbW), px, py + thumbH + 10);
+
+        col++;
+        if(col >= cols){
+          col = 0; px = 20; py += thumbH + 30;
+        } else {
+          px += thumbW + gap;
+        }
+      });
+    });
+  }
+
+  doc.save(`inspeccion-extintores-${data.meta.fecha || 'sin-fecha'}.pdf`);
+}
+
+async function generateExcel(source){
+  const data = source || state;
+  if(typeof ExcelJS === 'undefined'){
+    alert('No se pudo cargar el generador de Excel (revisa tu conexión a internet) e intenta de nuevo.');
+    return;
+  }
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'COMAPA SUR';
+  const ws = wb.addWorksheet('Inspección');
+
+  ws.addRow(['COMAPA SUR — Inspección de Extintores']).font = { bold:true, size:13, color:{argb:'FF0E9D5E'} };
+  ws.addRow([`Fecha: ${data.meta.fecha || '—'}`, `Inspector: ${data.meta.inspector || '—'}`]);
+  ws.addRow([]);
+
+  const headerRow = ws.addRow(['N°','Ubicación','Agente','Peso (kg)', ...CHECK_ITEMS.map(c=>c.label), 'Observaciones']);
+  headerRow.eachCell(cell => {
+    cell.font = { bold:true, color:{argb:'FFFFFFFF'} };
+    cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF0E7850'} };
+    cell.alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+  });
+
+  const withPhotos = [];
+
+  data.zonas.forEach(zona => {
+    [zona.primaryNumero, ...zona.extras].forEach(numero => {
+      const inv = data.inventory[numero];
+      const c = data.checks[numero];
+      if(!inv || !c) return;
+
+      const row = ws.addRow([
+        numero,
+        inv.ubicacion || '',
+        inv.agente || '',
+        inv.peso || '',
+        ...CHECK_ITEMS.map(ci => statusSymbol(c.items[ci.key])),
+        c.obs || ''
+      ]);
+
+      CHECK_ITEMS.forEach((ci, idx) => {
+        const cell = row.getCell(5 + idx);
+        const v = c.items[ci.key];
+        let fill = 'FFF4F4F4', font = 'FFBEBEBE';
+        if(v === STATUS.OK){ fill='FF16A34A'; font='FFFFFFFF'; }
+        else if(v === STATUS.FAIL){ fill='FFDC2626'; font='FFFFFFFF'; }
+        else if(v === STATUS.NA){ fill='FFCBD5E1'; font='FF475569'; }
+        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:fill} };
+        cell.font = { bold:true, color:{argb:font} };
+        cell.alignment = { horizontal:'center' };
+      });
+
+      if(c.photos && c.photos.length){
+        withPhotos.push({ numero, ubicacion: inv.ubicacion || '', photos:c.photos });
+      }
+    });
+  });
+
+  ws.columns = [
+    {width:6}, {width:34}, {width:9}, {width:9},
+    ...CHECK_ITEMS.map(() => ({width:13})),
+    {width:34}
+  ];
+
+  if(withPhotos.length){
+    const wsPhotos = wb.addWorksheet('Evidencia fotográfica');
+    wsPhotos.getColumn(1).width = 46;
+    let rowCursor = 1;
+    withPhotos.forEach(entry => {
+      entry.photos.forEach(src => {
+        const labelCell = wsPhotos.getCell(`A${rowCursor}`);
+        labelCell.value = `${entry.numero} — ${entry.ubicacion}`;
+        labelCell.font = { bold:true, color:{argb:'FF0E7850'} };
+        try{
+          const match = /^data:image\/(png|jpe?g);base64,/i.exec(src);
+          const ext = match ? (match[1].toLowerCase() === 'png' ? 'png' : 'jpeg') : 'jpeg';
+          const base64 = src.split(',')[1];
+          const imgId = wb.addImage({ base64, extension: ext });
+          wsPhotos.addImage(imgId, {
+            tl: { col:0, row: rowCursor },
+            ext: { width:280, height:210 }
+          });
+        }catch(e){ /* imagen inválida, se omite */ }
+        rowCursor += 12;
+      });
+    });
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type:'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `inspeccion-extintores-${data.meta.fecha || 'sin-fecha'}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- Init ---------- */
+
+async function init(){
+  let savedTheme = 'light';
+  try{ savedTheme = localStorage.getItem('extintores_theme') || 'light'; }catch(e){}
+  applyTheme(savedTheme);
+
+  state = await loadState();
+  document.getElementById('metaFecha').value = state.meta.fecha || todayISO();
+  document.getElementById('metaInspector').value = state.meta.inspector || '';
+  initEvents();
+  renderList();
+  listenForRemoteChanges();
+}
+
+init();
+</script>
+</body>
+</html>
